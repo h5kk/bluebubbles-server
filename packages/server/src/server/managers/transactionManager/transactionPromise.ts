@@ -8,6 +8,7 @@ export enum TransactionType {
     ATTACHMENT,
     HANDLE,
     FIND_MY,
+    CONTACT,
     OTHER
 }
 

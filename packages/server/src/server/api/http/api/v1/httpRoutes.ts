@@ -40,6 +40,7 @@ import { FindMyRouter } from "./routers/findmyRouter";
 import { getLogger } from "@server/lib/logging/Loggable";
 import { WebhookRouter } from "./routers/webhookRouter";
 import { WebhookValidator } from "./validators/webhookValidator";
+import { ContactPrivateApiRouter } from "./routers/contactPrivateApiRouter";
 
 export class HttpRoutes {
     static version = 1;
@@ -619,6 +620,53 @@ export class HttpRoutes {
                         method: HttpMethod.POST,
                         path: "query",
                         controller: ContactRouter.query
+                    }
+                ]
+            },
+            {
+                name: "Contact Private API",
+                middleware: [...HttpRoutes.protected, PrivateApiMiddleware],
+                prefix: "contact/papi",
+                routes: [
+                    {
+                        method: HttpMethod.GET,
+                        path: "handles",
+                        controller: ContactPrivateApiRouter.getHandles
+                    },
+                    {
+                        method: HttpMethod.GET,
+                        path: "handle/:address",
+                        controller: ContactPrivateApiRouter.getContact
+                    },
+                    {
+                        method: HttpMethod.GET,
+                        path: "handle/:address/photo",
+                        controller: ContactPrivateApiRouter.getContactPhoto
+                    },
+                    {
+                        method: HttpMethod.POST,
+                        path: "imessage-status",
+                        controller: ContactPrivateApiRouter.batchCheckIMessage
+                    },
+                    {
+                        method: HttpMethod.GET,
+                        path: "handle/:address/siblings",
+                        controller: ContactPrivateApiRouter.getHandleSiblings
+                    },
+                    {
+                        method: HttpMethod.GET,
+                        path: "suggested-names",
+                        controller: ContactPrivateApiRouter.getSuggestedNames
+                    },
+                    {
+                        method: HttpMethod.GET,
+                        path: "handle/:address/availability",
+                        controller: ContactPrivateApiRouter.getContactAvailability
+                    },
+                    {
+                        method: HttpMethod.GET,
+                        path: "handle/:address/business",
+                        controller: ContactPrivateApiRouter.detectBusiness
                     }
                 ]
             },

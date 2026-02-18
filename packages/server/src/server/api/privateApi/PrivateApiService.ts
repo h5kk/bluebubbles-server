@@ -16,6 +16,7 @@ import { PrivateApiMode, PrivateApiModeConstructor } from "./modes";
 import { ProcessDylibMode } from "./modes/ProcessDylibMode";
 import { PrivateApiPingEventHandler } from "./eventHandlers/PrivateApiPingEventHandler";
 import { PrivateApiFindMy } from "./apis/PrivateApiFindMy";
+import { PrivateApiContacts } from "./apis/PrivateApiContacts";
 import { PrivateApiAddressEventHandler } from "./eventHandlers/PrivateApiAddressEventHandler";
 import { PrivateApiFaceTimeStatusHandler } from "./eventHandlers/PrivateApiFaceTimeStatusHandler";
 import { PrivateApiCloud } from "./apis/PrivateApiCloud";
@@ -83,6 +84,10 @@ export class PrivateApiService extends Loggable {
 
     get facetime(): PrivateApiFaceTime {
         return new PrivateApiFaceTime(this);
+    }
+
+    get contacts(): PrivateApiContacts {
+        return new PrivateApiContacts(this);
     }
 
     constructor() {
