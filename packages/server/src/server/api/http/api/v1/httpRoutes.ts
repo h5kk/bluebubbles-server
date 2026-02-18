@@ -40,6 +40,7 @@ import { FindMyRouter } from "./routers/findmyRouter";
 import { getLogger } from "@server/lib/logging/Loggable";
 import { WebhookRouter } from "./routers/webhookRouter";
 import { WebhookValidator } from "./validators/webhookValidator";
+import { ContactValidator } from "./validators/contactValidator";
 import { ContactPrivateApiRouter } from "./routers/contactPrivateApiRouter";
 
 export class HttpRoutes {
@@ -440,6 +441,12 @@ export class HttpRoutes {
                     },
                     {
                         method: HttpMethod.POST,
+                        path: "attachment/chunk",
+                        validators: [MessageValidator.validateAttachmentChunk],
+                        controller: MessageRouter.sendAttachmentChunk
+                    },
+                    {
+                        method: HttpMethod.POST,
                         path: "multipart",
                         validators: [MessageValidator.validateMultipart],
                         controller: MessageRouter.sendMultipartMessage
@@ -617,9 +624,45 @@ export class HttpRoutes {
                         requestTimeoutMs: 5 * 60 * 1000
                     },
                     {
+                        method: HttpMethod.PUT,
+                        path: "",
+                        validators: [ContactValidator.validateUpdate],
+                        controller: ContactRouter.update
+                    },
+                    {
+                        method: HttpMethod.PUT,
+                        path: ":id",
+                        validators: [ContactValidator.validateUpdate],
+                        controller: ContactRouter.update
+                    },
+                    {
+                        method: HttpMethod.GET,
+                        path: "external/:externalId",
+                        controller: ContactRouter.findByExternalId
+                    },
+                    {
+                        method: HttpMethod.DELETE,
+                        path: ":id",
+                        validators: [ContactValidator.validateDelete],
+                        controller: ContactRouter.delete
+                    },
+                    {
+                        method: HttpMethod.DELETE,
+                        path: "",
+                        validators: [ContactValidator.validateDelete],
+                        controller: ContactRouter.delete
+                    },
+                    {
                         method: HttpMethod.POST,
                         path: "query",
                         controller: ContactRouter.query
+                    },
+                    {
+                        method: HttpMethod.POST,
+                        path: "import/vcf",
+                        validators: [ContactValidator.validateImportVcf],
+                        controller: ContactRouter.importVcf,
+                        requestTimeoutMs: 5 * 60 * 1000
                     }
                 ]
             },
@@ -667,6 +710,21 @@ export class HttpRoutes {
                         method: HttpMethod.GET,
                         path: "handle/:address/business",
                         controller: ContactPrivateApiRouter.detectBusiness
+                    },
+                    {
+                        method: HttpMethod.POST,
+                        path: "create",
+                        controller: ContactPrivateApiRouter.createContact
+                    },
+                    {
+                        method: HttpMethod.POST,
+                        path: "update",
+                        controller: ContactPrivateApiRouter.updateContact
+                    },
+                    {
+                        method: HttpMethod.POST,
+                        path: "delete",
+                        controller: ContactPrivateApiRouter.deleteContact
                     }
                 ]
             },

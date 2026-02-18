@@ -145,4 +145,75 @@ export class ContactPrivateApiRouter {
             });
         }
     }
+
+    static async createContact(ctx: RouterContext, _: Next) {
+        try {
+            const { body } = ctx.request;
+            if (!body?.firstName) {
+                throw new BadRequest({ error: "firstName is required!" });
+            }
+            const data = await ContactPrivateApiInterface.createContact({
+                firstName: body.firstName,
+                lastName: body.lastName,
+                phones: body.phones,
+                emails: body.emails
+            });
+            return new Success(ctx, {
+                message: "Successfully created contact!",
+                data
+            }).send();
+        } catch (ex: any) {
+            if (ex.status) throw ex;
+            throw new ServerError({
+                message: "Failed to create contact!",
+                error: ex?.message ?? ex.toString()
+            });
+        }
+    }
+
+    static async updateContact(ctx: RouterContext, _: Next) {
+        try {
+            const { body } = ctx.request;
+            if (!body?.cnContactID) {
+                throw new BadRequest({ error: "cnContactID is required!" });
+            }
+            const data = await ContactPrivateApiInterface.updateContact({
+                cnContactID: body.cnContactID,
+                firstName: body.firstName,
+                lastName: body.lastName,
+                phones: body.phones,
+                emails: body.emails
+            });
+            return new Success(ctx, {
+                message: "Successfully updated contact!",
+                data
+            }).send();
+        } catch (ex: any) {
+            if (ex.status) throw ex;
+            throw new ServerError({
+                message: "Failed to update contact!",
+                error: ex?.message ?? ex.toString()
+            });
+        }
+    }
+
+    static async deleteContact(ctx: RouterContext, _: Next) {
+        try {
+            const { body } = ctx.request;
+            if (!body?.cnContactID) {
+                throw new BadRequest({ error: "cnContactID is required!" });
+            }
+            const data = await ContactPrivateApiInterface.deleteContact(body.cnContactID);
+            return new Success(ctx, {
+                message: "Successfully deleted contact!",
+                data
+            }).send();
+        } catch (ex: any) {
+            if (ex.status) throw ex;
+            throw new ServerError({
+                message: "Failed to delete contact!",
+                error: ex?.message ?? ex.toString()
+            });
+        }
+    }
 }

@@ -54,3 +54,41 @@ export interface BusinessContactInfo {
     isApple: boolean;
     businessName: string | null;
 }
+
+export interface CreateContactRequest {
+    firstName: string;
+    lastName?: string;
+    phones?: string[];
+    emails?: string[];
+}
+
+export interface CreateContactResponse {
+    success: boolean;
+    cnContactID: string | null;
+    firstName: string;
+    lastName: string | null;
+}
+
+export interface UpdateContactRequest {
+    cnContactID: string;
+    firstName?: string;
+    lastName?: string;
+    phones?: string[];
+    emails?: string[];
+}
+
+export interface UpdateContactResponse {
+    success: boolean;
+    cnContactID: string;
+    firstName: string | null;
+    lastName: string | null;
+}
+
+export interface DeleteContactRequest {
+    cnContactID: string;
+}
+
+export interface DeleteContactResponse {
+    success: boolean;
+    cnContactID: string;
+}

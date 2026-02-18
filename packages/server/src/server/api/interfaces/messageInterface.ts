@@ -63,7 +63,19 @@ export class MessageInterface {
     }: SendMessageParams): Promise<Message> {
         if (!chatGuid) throw new Error("No chat GUID provided");
 
-        Server().log(`Sending message "${message}" to ${chatGuid}`, "debug");
+        // Auto-upgrade to Private API when available to avoid macOS Tahoe
+        // AppleScript bug where a single send creates duplicate DB entries
+        if (method === "apple-script") {
+            try {
+                checkPrivateApiStatus();
+                method = "private-api";
+                Server().log(`Auto-upgrading send from AppleScript to Private API`, "debug");
+            } catch {
+                // Private API not available, continue with AppleScript
+            }
+        }
+
+        Server().log(`Sending message "${message}" to ${chatGuid} via ${method}`, "debug");
 
         // We need offsets here due to iMessage's save times being a bit off for some reason
         const now = new Date(new Date().getTime() - 10000).getTime(); // With 10 second offset
@@ -140,6 +152,18 @@ export class MessageInterface {
         isAudioMessage = false
     }: SendAttachmentParams): Promise<Message> {
         if (!chatGuid) throw new Error("No chat GUID provided");
+
+        // Auto-upgrade to Private API when available to avoid macOS Tahoe
+        // AppleScript bug where a single send creates duplicate DB entries
+        if (method === "apple-script") {
+            try {
+                checkPrivateApiStatus();
+                method = "private-api";
+                Server().log(`Auto-upgrading attachment send from AppleScript to Private API`, "debug");
+            } catch {
+                // Private API not available, continue with AppleScript
+            }
+        }
 
         // Copy the attachment to a more permanent storage
         const newPath = FileSystem.copyAttachment(attachmentPath, attachmentName, method);

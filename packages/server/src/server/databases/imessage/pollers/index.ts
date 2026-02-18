@@ -74,6 +74,12 @@ export class IMessageCache {
     }
 }
 
+type OutgoingMessageFingerprint = {
+    text: string;
+    chatGuid: string;
+    timestamp: number;
+};
+
 export abstract class IMessagePoller extends Loggable {
     tag = "IMessagePoller";
 
@@ -82,6 +88,10 @@ export abstract class IMessagePoller extends Loggable {
     repo: MessageRepository;
 
     cache: IMessageCache;
+
+    // Dedup cache for outgoing messages: tracks recently emitted outgoing messages
+    // to suppress duplicates caused by macOS creating multiple DB entries for a single send
+    private recentOutgoing: OutgoingMessageFingerprint[] = [];
 
     // Cache of the last state of the message that has been seen by a listener
     messageStates: Record<string, MessageState> = {};
@@ -137,6 +147,41 @@ export abstract class IMessagePoller extends Loggable {
     processMessageEvent(message: Message): string | null {
         const event = this.getMessageEvent(message);
         if (!event) return null;
+
+        // Dedup: suppress duplicate outgoing messages with the same text in the same chat
+        // within a short window. macOS Tahoe can create multiple DB entries for a single send.
+        if (event === "new-entry" && message.isFromMe) {
+            const text = message.universalText() ?? "";
+            const chatGuid = message.chats?.[0]?.guid ?? "";
+            const now = Date.now();
+
+            // Trim old fingerprints (older than 5 seconds)
+            this.recentOutgoing = this.recentOutgoing.filter(fp => now - fp.timestamp < 5000);
+
+            // Check for a recent match
+            const isDuplicate = this.recentOutgoing.some(
+                fp => fp.text === text && fp.chatGuid === chatGuid
+            );
+
+            if (isDuplicate) {
+                // Still add to event cache so we track this GUID for update events
+                this.cache.events.add(message.guid);
+                this.messageStates[message.guid] = {
+                    dateCreated: message.dateCreated.getTime(),
+                    isDelivered: message.isDelivered ?? false,
+                    dateDelivered: message?.dateDelivered ? message.dateDelivered.getTime() : 0,
+                    dateRead: message?.dateRead ? message.dateRead.getTime() : 0,
+                    dateEdited: message.dateEdited ? message.dateEdited.getTime() : 0,
+                    dateRetracted: message.dateRetracted ? message.dateRetracted.getTime() : 0,
+                    didNotifyRecipient: message.didNotifyRecipient ?? false,
+                    hasUnsentParts: message.hasUnsentParts
+                };
+                return null; // Suppress the duplicate
+            }
+
+            // Record this outgoing message fingerprint
+            this.recentOutgoing.push({ text, chatGuid, timestamp: now });
+        }
 
         if (event === "new-entry") {
             this.cache.events.add(message.guid);

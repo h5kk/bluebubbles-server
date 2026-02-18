@@ -4,6 +4,7 @@ import {
     TransactionType
 } from "@server/managers/transactionManager/transactionPromise";
 import { PrivateApiAction } from ".";
+import { CreateContactRequest, UpdateContactRequest } from "@server/api/lib/contacts/types";
 
 export class PrivateApiContacts extends PrivateApiAction {
     tag = "PrivateApiContacts";
@@ -60,5 +61,26 @@ export class PrivateApiContacts extends PrivateApiAction {
         this.throwForNoMissingFields(action, [address]);
         const request = new TransactionPromise(TransactionType.CONTACT);
         return this.sendApiMessage(action, { address }, request);
+    }
+
+    async createContact(params: CreateContactRequest): Promise<TransactionResult> {
+        const action = "create-contact";
+        this.throwForNoMissingFields(action, [params.firstName]);
+        const request = new TransactionPromise(TransactionType.CONTACT);
+        return this.sendApiMessage(action, { ...params }, request);
+    }
+
+    async updateContact(params: UpdateContactRequest): Promise<TransactionResult> {
+        const action = "update-contact";
+        this.throwForNoMissingFields(action, [params.cnContactID]);
+        const request = new TransactionPromise(TransactionType.CONTACT);
+        return this.sendApiMessage(action, { ...params }, request);
+    }
+
+    async deleteContact(cnContactID: string): Promise<TransactionResult> {
+        const action = "delete-contact";
+        this.throwForNoMissingFields(action, [cnContactID]);
+        const request = new TransactionPromise(TransactionType.CONTACT);
+        return this.sendApiMessage(action, { cnContactID }, request);
     }
 }

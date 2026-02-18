@@ -14,6 +14,9 @@
 | 6 | GET | `/api/v1/contact/papi/suggested-names` | Get Siri-suggested names for non-contacts |
 | 7 | GET | `/api/v1/contact/papi/handle/:address/availability` | Get Focus/DND status |
 | 8 | GET | `/api/v1/contact/papi/handle/:address/business` | Detect business/Apple Business Chat |
+| 9 | POST | `/api/v1/contact/papi/create` | Create a new contact |
+| 10 | POST | `/api/v1/contact/papi/update` | Update an existing contact |
+| 11 | POST | `/api/v1/contact/papi/delete` | Delete an existing contact |
 
 ## Authentication
 
@@ -468,6 +471,235 @@ GET /api/v1/contact/papi/handle/:address/business?password=...
 
 ---
 
+## Endpoint 9: Create Contact
+
+```
+POST /api/v1/contact/papi/create?password=...
+Content-Type: application/json
+```
+
+### Request Body
+
+```typescript
+{
+    firstName: string,       // required
+    lastName?: string,       // optional
+    phones?: string[],       // optional array of phone numbers
+    emails?: string[]        // optional array of email addresses
+}
+```
+
+### Response Schema
+
+```typescript
+{
+    status: 200,
+    message: "Successfully created contact!",
+    data: {
+        success: boolean,
+        cnContactID: string | null,  // CNContact identifier for the new contact
+        firstName: string,
+        lastName: string | null
+    }
+}
+```
+
+### Verified Response
+
+Request:
+```json
+{"firstName": "John", "lastName": "Doe", "phones": ["+11234567890"], "emails": ["john@example.com"]}
+```
+
+Response:
+```json
+{
+    "status": 200,
+    "message": "Successfully created contact!",
+    "data": {
+        "success": true,
+        "cnContactID": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+        "firstName": "John",
+        "lastName": "Doe"
+    }
+}
+```
+
+### Error: Missing firstName (400)
+
+```json
+{
+    "status": 400,
+    "message": "Bad Request",
+    "error": { "type": "Validation Error", "message": "firstName is required!" }
+}
+```
+
+### Notes
+- Contact is saved to the default CNContactStore container
+- Phones are added with label `CNLabelPhoneNumberMain`
+- Emails are added with label `CNLabelHome`
+- The returned `cnContactID` can be used for subsequent update/delete operations
+- Uses the Contacts.framework via the helper bundle (Messages.app has Contacts TCC permission)
+
+---
+
+## Endpoint 10: Update Contact
+
+```
+POST /api/v1/contact/papi/update?password=...
+Content-Type: application/json
+```
+
+### Request Body
+
+```typescript
+{
+    cnContactID: string,     // required — the contact identifier from create or get-contact
+    firstName?: string,      // optional — update first name
+    lastName?: string,       // optional — update last name
+    phones?: string[],       // optional — REPLACE all phone numbers
+    emails?: string[]        // optional — REPLACE all email addresses
+}
+```
+
+### Response Schema
+
+```typescript
+{
+    status: 200,
+    message: "Successfully updated contact!",
+    data: {
+        success: boolean,
+        cnContactID: string,
+        firstName: string | null,
+        lastName: string | null
+    }
+}
+```
+
+### Verified Response
+
+Request:
+```json
+{"cnContactID": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890", "firstName": "Jane", "lastName": "Smith"}
+```
+
+Response:
+```json
+{
+    "status": 200,
+    "message": "Successfully updated contact!",
+    "data": {
+        "success": true,
+        "cnContactID": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+        "firstName": "Jane",
+        "lastName": "Smith"
+    }
+}
+```
+
+### Error: Missing cnContactID (400)
+
+```json
+{
+    "status": 400,
+    "message": "Bad Request",
+    "error": { "type": "Validation Error", "message": "cnContactID is required!" }
+}
+```
+
+### Error: Contact Not Found (500)
+
+```json
+{
+    "status": 500,
+    "message": "Failed to update contact!",
+    "error": { "type": "Server Error", "message": "Contact not found for ID: ..." }
+}
+```
+
+### Notes
+- Only provided fields are updated; omitted fields are left unchanged
+- **Exception**: `phones` and `emails` arrays **replace** all existing values when provided (not appended)
+- Fetches the existing contact by `cnContactID`, creates a mutable copy, applies changes, saves
+
+---
+
+## Endpoint 11: Delete Contact
+
+```
+POST /api/v1/contact/papi/delete?password=...
+Content-Type: application/json
+```
+
+### Request Body
+
+```typescript
+{
+    cnContactID: string   // required — the contact identifier
+}
+```
+
+### Response Schema
+
+```typescript
+{
+    status: 200,
+    message: "Successfully deleted contact!",
+    data: {
+        success: boolean,
+        cnContactID: string
+    }
+}
+```
+
+### Verified Response
+
+Request:
+```json
+{"cnContactID": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"}
+```
+
+Response:
+```json
+{
+    "status": 200,
+    "message": "Successfully deleted contact!",
+    "data": {
+        "success": true,
+        "cnContactID": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
+    }
+}
+```
+
+### Error: Missing cnContactID (400)
+
+```json
+{
+    "status": 400,
+    "message": "Bad Request",
+    "error": { "type": "Validation Error", "message": "cnContactID is required!" }
+}
+```
+
+### Error: Contact Not Found (500)
+
+```json
+{
+    "status": 500,
+    "message": "Failed to delete contact!",
+    "error": { "type": "Server Error", "message": "Contact not found for ID: ..." }
+}
+```
+
+### Notes
+- Permanently deletes the contact from the system Contacts database
+- This action cannot be undone
+- The contact is removed from all groups it belongs to
+
+---
+
 ## Error Responses
 
 ### Feature Flag Disabled (403)
@@ -572,6 +804,39 @@ async function isBusiness(address: string) {
     const json = await res.json();
     return json.data;  // { isBusiness, isMako, isApple, businessName }
 }
+
+// Create a contact
+async function createContact(firstName: string, lastName?: string, phones?: string[], emails?: string[]) {
+    const res = await fetch(`${BASE}/create?password=${PASSWORD}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName, lastName, phones, emails })
+    });
+    const json = await res.json();
+    return json.data;  // { success, cnContactID, firstName, lastName }
+}
+
+// Update a contact
+async function updateContact(cnContactID: string, updates: { firstName?: string, lastName?: string, phones?: string[], emails?: string[] }) {
+    const res = await fetch(`${BASE}/update?password=${PASSWORD}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cnContactID, ...updates })
+    });
+    const json = await res.json();
+    return json.data;  // { success, cnContactID, firstName, lastName }
+}
+
+// Delete a contact
+async function deleteContact(cnContactID: string) {
+    const res = await fetch(`${BASE}/delete?password=${PASSWORD}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cnContactID })
+    });
+    const json = await res.json();
+    return json.data;  // { success, cnContactID }
+}
 ```
 
 ### Python (requests)
@@ -605,6 +870,21 @@ def get_siblings(address: str) -> dict:
 def get_availability(address: str) -> dict:
     r = requests.get(f"{BASE}/handle/{quote(address, safe='')}/availability",
                      params={"password": PASSWORD})
+    return r.json()["data"]
+
+def create_contact(first_name: str, last_name: str = None, phones: list[str] = None, emails: list[str] = None) -> dict:
+    r = requests.post(f"{BASE}/create", params={"password": PASSWORD},
+                      json={"firstName": first_name, "lastName": last_name, "phones": phones, "emails": emails})
+    return r.json()["data"]
+
+def update_contact(cn_contact_id: str, **kwargs) -> dict:
+    body = {"cnContactID": cn_contact_id, **kwargs}
+    r = requests.post(f"{BASE}/update", params={"password": PASSWORD}, json=body)
+    return r.json()["data"]
+
+def delete_contact(cn_contact_id: str) -> dict:
+    r = requests.post(f"{BASE}/delete", params={"password": PASSWORD},
+                      json={"cnContactID": cn_contact_id})
     return r.json()["data"]
 ```
 
@@ -652,6 +932,38 @@ class ContactPapiService {
       Uri.parse(_url('handle/${Uri.encodeComponent(address)}/business')));
     return jsonDecode(res.body)['data'];
   }
+
+  Future<Map<String, dynamic>?> createContact(String firstName, {String? lastName, List<String>? phones, List<String>? emails}) async {
+    final res = await http.post(
+      Uri.parse(_url('create')),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'firstName': firstName, 'lastName': lastName, 'phones': phones, 'emails': emails}),
+    );
+    return jsonDecode(res.body)['data'];
+  }
+
+  Future<Map<String, dynamic>?> updateContact(String cnContactID, {String? firstName, String? lastName, List<String>? phones, List<String>? emails}) async {
+    final body = <String, dynamic>{'cnContactID': cnContactID};
+    if (firstName != null) body['firstName'] = firstName;
+    if (lastName != null) body['lastName'] = lastName;
+    if (phones != null) body['phones'] = phones;
+    if (emails != null) body['emails'] = emails;
+    final res = await http.post(
+      Uri.parse(_url('update')),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+    return jsonDecode(res.body)['data'];
+  }
+
+  Future<Map<String, dynamic>?> deleteContact(String cnContactID) async {
+    final res = await http.post(
+      Uri.parse(_url('delete')),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'cnContactID': cnContactID}),
+    );
+    return jsonDecode(res.body)['data'];
+  }
 }
 ```
 
@@ -662,14 +974,14 @@ class ContactPapiService {
 | File | Purpose |
 |------|---------|
 | `packages/server/src/server/api/lib/contacts/types.ts` | TypeScript interfaces for all response types |
-| `packages/server/src/server/api/privateApi/apis/PrivateApiContacts.ts` | 8 methods extending PrivateApiAction, creates TransactionPromise(CONTACT) |
+| `packages/server/src/server/api/privateApi/apis/PrivateApiContacts.ts` | 11 methods extending PrivateApiAction, creates TransactionPromise(CONTACT) |
 | `packages/server/src/server/api/interfaces/contactPrivateApiInterface.ts` | Feature flag check + Private API status check + data extraction |
 | `packages/server/src/server/api/http/api/v1/routers/contactPrivateApiRouter.ts` | HTTP route handlers (parse params, call interface, return Success/ServerError) |
 | `packages/server/src/server/api/http/api/v1/httpRoutes.ts` | Route registration under prefix `contact/papi` with PrivateApiMiddleware |
 | `packages/server/src/server/api/privateApi/PrivateApiService.ts` | `contacts` getter exposes PrivateApiContacts |
 | `packages/server/src/server/managers/transactionManager/transactionPromise.ts` | TransactionType.CONTACT enum value |
 | `packages/server/src/server/databases/server/constants.ts` | `enable_contacts_private_api` feature flag default |
-| `bluebubbles-helper/Messages/MacOS-11+/BlueBubblesHelper/BlueBubblesHelper.m` | 8 Obj-C action handlers using IMCore private framework |
+| `bluebubbles-helper/Messages/MacOS-11+/BlueBubblesHelper/BlueBubblesHelper.m` | 11 Obj-C action handlers (8 read + 3 write using IMCore + Contacts.framework) |
 
 ## Limitations
 
@@ -680,3 +992,6 @@ class ContactPapiService {
 5. **Business detection**: `isMako`, `isApple`, `mapItem` selectors may not exist on older macOS; defaults to `false`/`null`
 6. **Photo size**: Base64 photos can be large; use `quality=thumbnail` (150x150 PNG) when possible
 7. **Helper required**: All endpoints fail if the Private API helper bundle is not connected to Messages.app
+8. **Contact writes are permanent**: Create/update/delete operate on the system Contacts database (CNContactStore); deletions cannot be undone
+9. **Phone/email replacement**: When updating a contact with `phones` or `emails`, all existing values are **replaced**, not appended
+10. **Contacts.framework TCC**: The helper bundle inherits Messages.app's Contacts permission; no additional TCC grant needed
