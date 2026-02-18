@@ -1,6 +1,7 @@
 import { Server } from "@server";
 import { checkPrivateApiStatus } from "@server/helpers/utils";
 import { Forbidden } from "@server/api/http/api/v1/responses/errors";
+import { CreateContactRequest, UpdateContactRequest } from "@server/api/lib/contacts/types";
 
 export class ContactPrivateApiInterface {
     private static checkFeatureFlag() {
@@ -75,6 +76,27 @@ export class ContactPrivateApiInterface {
         this.checkFeatureFlag();
         checkPrivateApiStatus();
         const result = await Server().privateApi.contacts.detectBusinessContact(address);
+        return ContactPrivateApiInterface.extractData(result);
+    }
+
+    static async createContact(params: CreateContactRequest) {
+        this.checkFeatureFlag();
+        checkPrivateApiStatus();
+        const result = await Server().privateApi.contacts.createContact(params);
+        return ContactPrivateApiInterface.extractData(result);
+    }
+
+    static async updateContact(params: UpdateContactRequest) {
+        this.checkFeatureFlag();
+        checkPrivateApiStatus();
+        const result = await Server().privateApi.contacts.updateContact(params);
+        return ContactPrivateApiInterface.extractData(result);
+    }
+
+    static async deleteContact(cnContactID: string) {
+        this.checkFeatureFlag();
+        checkPrivateApiStatus();
+        const result = await Server().privateApi.contacts.deleteContact(cnContactID);
         return ContactPrivateApiInterface.extractData(result);
     }
 }

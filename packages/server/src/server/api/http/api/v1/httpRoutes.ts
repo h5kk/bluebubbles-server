@@ -710,6 +710,21 @@ export class HttpRoutes {
                         method: HttpMethod.GET,
                         path: "handle/:address/business",
                         controller: ContactPrivateApiRouter.detectBusiness
+                    },
+                    {
+                        method: HttpMethod.POST,
+                        path: "create",
+                        controller: ContactPrivateApiRouter.createContact
+                    },
+                    {
+                        method: HttpMethod.POST,
+                        path: "update",
+                        controller: ContactPrivateApiRouter.updateContact
+                    },
+                    {
+                        method: HttpMethod.POST,
+                        path: "delete",
+                        controller: ContactPrivateApiRouter.deleteContact
                     }
                 ]
             },
