@@ -25,7 +25,9 @@ import {
     slugifyAddress,
     isNotEmpty,
     isEmpty,
-    safeTrim
+    safeTrim,
+    waitMs,
+    onlyAlphaNumeric
 } from "../../helpers/utils";
 import { tapbackUIMap } from "./mappings";
 import { MessageInterface } from "../interfaces/messageInterface";
@@ -56,8 +58,9 @@ export class ActionHandler {
         // Start the message send workflow
         //  1: Try sending using the input Chat GUID
         //    1.a: If there is a timeout error, we should restart the Messages App and retry
-        //  2: If we still have an error, use the send message fallback script (only works for DMs)
-        //  3: If we still have an error, throw the error
+        //  2: If we still have an error, check if the message was actually delivered despite the error
+        //  3: If not delivered, use the send message fallback script (only works for DMs)
+        //  4: If we still have an error, throw the error
         let error;
         try {
             messageScript = buildSendMessageScript(chatGuid, message ?? "", theAttachment);
@@ -77,9 +80,25 @@ export class ActionHandler {
                     log.debug(`[Retry] Sending AppleScript text after Messages restart...`);
                     await FileSystem.executeAppleScript(restartMessages());
                     await FileSystem.executeAppleScript(messageScript);
+                    error = null; // Clear error on successful retry
                 } catch (ex2: any) {
                     error = ex2;
                 }
+            }
+        }
+
+        // Before trying the fallback, check if the message was already delivered.
+        // AppleScript can throw (e.g. timeout) even when the message was actually sent,
+        // and the fallback sends via a different mechanism, causing a duplicate.
+        if (error && message) {
+            try {
+                const alreadySent = await ActionHandler.wasMessageAlreadySent(chatGuid, message);
+                if (alreadySent) {
+                    log.info("Message was delivered despite AppleScript error. Skipping fallback to prevent duplicate send.");
+                    return;
+                }
+            } catch (checkEx) {
+                log.debug(`Could not verify message delivery, proceeding with fallback: ${checkEx}`);
             }
         }
 
@@ -111,6 +130,43 @@ export class ActionHandler {
             log.warn(msg);
             throw new Error(msg);
         }
+    };
+
+    /**
+     * Checks if a message was already delivered to the iMessage database.
+     * Used to prevent duplicate sends when AppleScript throws an error
+     * (e.g. timeout) but the message was actually sent successfully.
+     */
+    private static wasMessageAlreadySent = async (chatGuid: string, message: string): Promise<boolean> => {
+        // Wait for the iMessage DB to catch up
+        await waitMs(1500);
+
+        const normalizedText = onlyAlphaNumeric(message);
+        if (!normalizedText) return false;
+
+        // Extract the address from the chatGuid for flexible matching.
+        // chatGuid may be "any;-;+18323318625" or "iMessage;-;+18323318625"
+        const parts = chatGuid.split(";");
+        const address = parts.length >= 3 ? parts.slice(2).join(";") : chatGuid;
+
+        const [messages] = await Server().iMessageRepo.getMessages({
+            after: new Date(Date.now() - 15000), // Last 15 seconds
+            limit: 10,
+            withChats: true,
+            withAttachments: false,
+            where: [
+                { statement: "message.is_from_me = 1", args: null }
+            ]
+        });
+
+        return messages.some(m => {
+            // Match by normalized text content
+            const msgText = onlyAlphaNumeric(m.text ?? "");
+            if (msgText !== normalizedText) return false;
+
+            // Match by chat — check if any of the message's chats contain the target address
+            return m.chats?.some(c => c.guid?.includes(address)) ?? false;
+        });
     };
 
     /**
