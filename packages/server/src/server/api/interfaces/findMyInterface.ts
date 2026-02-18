@@ -2,7 +2,7 @@ import { Server } from "@server";
 import path from "path";
 import fs from "fs";
 import { FileSystem } from "@server/fileSystem";
-import { isMinBigSur, isMinSequoia, isMinSonoma } from "@server/env";
+import { isMinBigSur } from "@server/env";
 import { checkPrivateApiStatus, waitMs } from "@server/helpers/utils";
 import { quitFindMyFriends, startFindMyFriends, showFindMyFriends, hideFindMyFriends } from "../apple/scripts";
 import { FindMyDevice, FindMyItem, FindMyLocationItem } from "@server/api/lib/findmy/types";
@@ -14,11 +14,6 @@ export class FindMyInterface {
     }
 
     static async getDevices(): Promise<Array<FindMyDevice> | null> {
-        if (isMinSequoia) {
-            Server().logger.debug('Cannot fetch FindMy devices on macOS Sequoia or later.');
-            return null;
-        }
-
         try {
             const [devices, items] = await Promise.all([
                 FindMyInterface.readDataFile("Devices"),
@@ -72,7 +67,7 @@ export class FindMyInterface {
 
     static async refreshFriends(openFindMyApp = true): Promise<FindMyLocationItem[]> {
         const papiEnabled = Server().repo.getConfig("enable_private_api") as boolean;
-        if (papiEnabled && isMinBigSur && !isMinSonoma) {
+        if (papiEnabled && isMinBigSur) {
             checkPrivateApiStatus();
             const result = await Server().privateApi.findmy.refreshFriends();
             const refreshLocations = result?.data?.locations ?? [];
@@ -115,12 +110,21 @@ export class FindMyInterface {
         if (!fs.existsSync(itemGroupsPath)) return [];
 
         return new Promise((resolve, reject) => {
-            fs.readFile(itemGroupsPath, { encoding: "utf-8" }, (err, data) => {
+            fs.readFile(itemGroupsPath, (err, data) => {
                 // Couldn't read the file
                 if (err) return resolve(null);
 
+                // Check if the file is a binary plist (encrypted on macOS 14.4+)
+                if (data.length >= 6 && data.subarray(0, 6).toString("ascii") === "bplist") {
+                    Server().logger.debug(
+                        "FindMy ItemGroups cache file is an encrypted binary plist. " +
+                        "ItemGroups data is not available on macOS 14.4+."
+                    );
+                    return resolve([]);
+                }
+
                 try {
-                    const parsedData = JSON.parse(data.toString());
+                    const parsedData = JSON.parse(data.toString("utf-8"));
                     if (Array.isArray(parsedData)) {
                         return resolve(parsedData);
                     } else {
@@ -136,14 +140,24 @@ export class FindMyInterface {
     private static readDataFile<T extends "Devices" | "Items">(
         type: T
     ): Promise<Array<T extends "Devices" ? FindMyDevice : FindMyItem> | null> {
-        const devicesPath = path.join(FileSystem.findMyDir, `${type}.data`);
+        const filePath = path.join(FileSystem.findMyDir, `${type}.data`);
         return new Promise((resolve, reject) => {
-            fs.readFile(devicesPath, { encoding: "utf-8" }, (err, data) => {
+            fs.readFile(filePath, (err, data) => {
                 // Couldn't read the file
                 if (err) return resolve(null);
 
+                // Check if the file is a binary plist (starts with "bplist")
+                if (data.length >= 6 && data.subarray(0, 6).toString("ascii") === "bplist") {
+                    Server().logger.debug(
+                        `FindMy ${type} cache file is an encrypted binary plist. ` +
+                        `This is expected on macOS 14.4+ where Apple encrypts Find My cache data. ` +
+                        `Device/item tracking via cache files is not available.`
+                    );
+                    return resolve(null);
+                }
+
                 try {
-                    const parsedData = JSON.parse(data.toString());
+                    const parsedData = JSON.parse(data.toString("utf-8"));
                     if (Array.isArray(parsedData)) {
                         return resolve(parsedData);
                     } else {
